@@ -1,0 +1,17 @@
+# Visual Studio 生成文件 / 编译中间产物
+.vs/
+x64/
+Debug/
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.ipch
+*.db
+*.suo
+*.lastbuildstate
+*.recipe
+*.user
+
+# 超过 GitHub 100MB 限制的大日志，不上传
+logs/550W_log_20251102_095946.txt

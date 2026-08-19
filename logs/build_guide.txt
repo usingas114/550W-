@@ -1,0 +1,65 @@
+# Visual Studio 编译指南
+
+## 问题分析
+编译错误 `C4996: 'localtime': This function or variable may be unsafe` 是由于Visual Studio的安全检查机制导致的。
+
+## 解决方案
+
+### 1. 已修复的代码
+我已将 `localtime` 函数替换为更安全的 `localtime_s` 版本：
+```cpp
+std::string formatTime(time_t t) {
+    std::tm now;
+    localtime_s(&now, &t);
+    std::stringstream ss;
+    ss << std::put_time(&now, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+```
+
+### 2. 配置Visual Studio项目
+
+#### 步骤1: 设置C++标准
+1. 右键点击项目 → 属性 → C/C++ → 语言
+2. 选择 "C++语言标准" 为 "ISO C++11 标准 (/std:c++11)" 或更高版本
+
+#### 步骤2: 禁用安全警告（可选）
+如果还有其他安全警告，可以添加预处理器定义：
+1. 右键点击项目 → 属性 → C/C++ → 预处理器
+2. 在 "预处理器定义" 中添加 `_CRT_SECURE_NO_WARNINGS`
+
+#### 步骤3: 添加必要的库（如果需要）
+- 确保包含 `kernel32.lib`, `user32.lib`, `gdi32.lib`, `winspool.lib` 等标准库
+
+### 3. 编译和运行
+- 选择 Debug 或 Release 配置
+- 点击 "生成" → "生成解决方案"
+- 运行程序
+
+## 完整编译命令（命令行）
+
+如果使用 Visual Studio 命令提示符：
+```batch
+cl critical_protocol.cpp /EHsc /std:c++11 /D_CRT_SECURE_NO_WARNINGS
+```
+
+参数说明：
+- `/EHsc`: 启用C++异常处理
+- `/std:c++11`: 使用C++11标准
+- `/D_CRT_SECURE_NO_WARNINGS`: 禁用安全警告
+
+## 注意事项
+
+1. 确保项目平台与代码兼容（x86/x64）
+2. 代码使用了多线程库，需要链接正确的线程库
+3. 时间函数需要包含 `ctime` 头文件（已在代码中添加）
+
+## 预期输出
+
+编译成功后，运行程序将看到完整的临界协议模拟流程，包括：
+- 系统设置和激活
+- 入侵检测和触发
+- 谈判和撤离过程
+- 系统状态报告
+
+所有操作都将带有时间戳，模拟真实的操作流程。

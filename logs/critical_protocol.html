@@ -1,0 +1,2929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>临界协议 - Critical Protocol</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: radial-gradient(ellipse at center, #0a0e27 0%, #000413 100%);
+            color: #00ffff;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* 背景动画 */
+        .background-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            z-index: -2;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        .background-glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            z-index: -1;
+            animation: glowPulse 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes glowPulse {
+            0% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.2); }
+        }
+
+        /* 粒子效果 */
+        #particleCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        /* 标题栏 */
+        .header {
+            background: rgba(0, 30, 60, 0.8);
+            border-bottom: 2px solid #00ffff;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            margin-bottom: 5px;
+        }
+
+        .header .subtitle {
+            font-size: 1.1em;
+            color: #87ceeb;
+            opacity: 0.8;
+        }
+
+        /* 主容器 */
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .system-status {
+            font-size: 1.2em;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-safe { background-color: #00ff00; box-shadow: 0 0 10px #00ff00; }
+        .status-active { background-color: #ffff00; box-shadow: 0 0 10px #ffff00; }
+        .status-triggered { background-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
+
+        .current-time {
+            color: #87ceeb;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .control-section {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+            flex: 1;
+        }
+
+        .control-section h2 {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: #00ffff;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+            border-bottom: 1px solid rgba(0, 255, 255, 0.5);
+            padding-bottom: 8px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            background: rgba(0, 100, 150, 0.6);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            background: rgba(0, 150, 200, 0.8);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-danger {
+            background: rgba(150, 0, 50, 0.6);
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .btn-danger:hover {
+            background: rgba(200, 0, 50, 0.8);
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.6);
+        }
+
+        /* 传感器和化学物质状态 */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .status-card {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        .status-card h3 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            color: #00ffff;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: #87ceeb;
+        }
+
+        .status-value {
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+
+        .value-normal { color: #00ff00; }
+        .value-warning { color: #ffff00; }
+        .value-danger { color: #ff4444; }
+
+        /* 仪表盘样式 */
+        .dashboard {
+            margin-bottom: 20px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .metric-item {
+            background: rgba(0, 20, 40, 0.6);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+        }
+
+        .metric-label {
+            display: block;
+            color: #87ceeb;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .metric-value {
+            display: block;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: rgba(0, 50, 100, 0.8);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .trend-indicator {
+            font-size: 1.5em;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        .trend-up { color: #ff4444; }
+        .trend-down { color: #00ff00; }
+        .trend-stable { color: #ffff00; }
+
+        /* 日志区域 */
+        .log-section {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .log-section h2 {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            color: #00ffff;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+            border-bottom: 1px solid rgba(0, 255, 255, 0.5);
+            padding-bottom: 8px;
+        }
+
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        /* 仪表盘样式 */
+        .dashboard {
+            margin-bottom: 20px;
+        }
+
+        .metric-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .metric-label {
+            color: #87ceeb;
+            font-size: 0.9em;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            font-size: 1.3em;
+            font-family: 'Courier New', monospace;
+            color: #00ffff;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 50, 80, 0.8);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .log-entry::before {
+            content: ">>";
+            position: absolute;
+            left: 0;
+            color: #00ffff;
+        }
+
+        .log-time {
+            color: #87ceeb;
+            margin-right: 10px;
+        }
+
+        .log-alert {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        
+        .log-info {
+            color: #00ffff;
+        }
+        
+        .log-warning {
+            color: #ffff00;
+            font-weight: bold;
+        }
+        
+        .log-entry.hidden {
+            display: none;
+        }
+
+        /* 配置面板样式 */
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .config-item label {
+            color: #87ceeb;
+            font-size: 0.9em;
+        }
+
+        .config-item input[type="number"],
+        .config-item input[type="range"] {
+            background: rgba(0, 30, 60, 0.8);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            padding: 8px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            outline: none;
+        }
+
+        .config-item input[type="number"]:focus,
+        .config-item input[type="range"]:focus {
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            border-color: #00ffff;
+        }
+
+        .config-item input[type="range"] {
+            padding: 5px 8px;
+        }
+
+        .config-item span {
+            color: #00ffff;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 20, 40, 0.8);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 255, 0.8);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .control-panel {
+                flex-direction: column;
+            }
+
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+                line-height: 1.2;
+            }
+
+            .header .subtitle {
+                font-size: 1em;
+            }
+
+            /* 优化配置面板在移动端的显示 */
+            .config-group {
+                gap: 15px;
+            }
+
+            .config-item {
+                gap: 8px;
+            }
+
+            .config-item label {
+                font-size: 0.95em;
+                font-weight: bold;
+                color: #b0e0e6;
+            }
+
+            .config-item input[type="number"],
+            .config-item input[type="range"] {
+                padding: 12px;
+                font-size: 1.1em;
+                min-height: 48px; /* 确保触摸目标足够大 */
+                border-width: 2px;
+            }
+
+            /* 优化图表在小屏幕上的尺寸 */
+            canvas {
+                max-width: 100%;
+                height: 220px !important;
+            }
+
+            /* 调整按钮大小，确保在移动端易于点击 */
+            .btn {
+                padding: 16px;
+                font-size: 1.1em;
+                min-height: 52px; /* 确保触摸目标足够大 */
+                font-weight: bold;
+                letter-spacing: 0.5px;
+            }
+
+            /* 优化日志区域在小屏幕上的显示 */
+            .log-container {
+                height: 200px;
+                font-size: 0.95em;
+                line-height: 1.5;
+            }
+
+            /* 调整容器内边距 */
+            .container {
+                padding: 0 15px;
+            }
+
+            /* 调整状态栏布局 */
+            .status-bar {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+                padding: 15px;
+            }
+
+            .system-status {
+                font-size: 1.15em;
+            }
+
+            /* 调整状态卡片内边距 */
+            .status-card {
+                padding: 20px;
+                margin-bottom: 15px;
+            }
+
+            .status-card h3 {
+                font-size: 1.2em;
+                margin-bottom: 12px;
+            }
+
+            /* 调整图表卡片高度 */
+            .status-card canvas {
+                margin-top: 12px;
+            }
+
+            /* 优化状态项显示 */
+            .status-item {
+                padding: 10px 0;
+                font-size: 1.05em;
+            }
+
+            /* 增强文本可读性 */
+            body {
+                font-size: 16px;
+            }
+        }
+
+        /* 针对超小屏幕的额外优化 */
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .header .subtitle {
+                font-size: 0.9em;
+            }
+
+            .control-section h2 {
+                font-size: 1.1em;
+            }
+
+            .status-card h3 {
+                font-size: 1.1em;
+            }
+
+            /* 进一步减小图表高度 */
+            canvas {
+                height: 180px !important;
+            }
+
+            /* 增大配置项输入框的触摸目标 */
+            .config-item input[type="number"],
+            .config-item input[type="range"] {
+                padding: 12px;
+                font-size: 1.1em;
+            }
+
+            /* 增大按钮的触摸目标 */
+            .btn {
+                padding: 16px;
+                font-size: 1.1em;
+            }
+        }
+
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            .btn:active {
+                transform: scale(0.95);
+            }
+
+            .status-card {
+                border-width: 2px;
+            }
+
+            /* 禁用图表交互以提高性能 */
+            #sensorChart, #chemicalChart {
+                pointer-events: none;
+            }
+        }
+
+        /* 图表控制按钮样式 */
+        .chart-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.9em;
+            min-height: auto;
+            line-height: 1.2;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-grid"></div>
+    <div class="background-glow"></div>
+    <canvas id="particleCanvas"></canvas>
+
+    <div class="header">
+        <h1>临界协议 - Critical Protocol</h1>
+        <div class="subtitle">精密到残忍的钟表机芯</div>
+    </div>
+
+    <div class="container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="system-status">
+                <span class="status-indicator status-safe" id="systemIndicator"></span>
+                <span id="systemStatus">系统就绪</span>
+            </div>
+            <div class="current-time" id="currentTime"></div>
+        </div>
+
+        <!-- 实时系统状态仪表盘 -->
+        <div class="dashboard">
+            <div class="status-card">
+                <h3>系统性能指标</h3>
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">传感器响应时间</span>
+                        <span class="metric-value" id="responseTime">2.1 ms</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="responseTimeBar" style="width: 95%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">化学稳定性指数</span>
+                        <span class="metric-value" id="stabilityIndex">98.5%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="stabilityIndexBar" style="width: 98.5%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">传感器健康评分</span>
+                        <span class="metric-value" id="sensorHealth">95</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="sensorHealthBar" style="width: 95%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">系统负载</span>
+                        <span class="metric-value" id="systemLoad">35%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="systemLoadBar" style="width: 35%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">电源状态</span>
+                        <span class="metric-value" id="powerStatus">主电源</span>
+                        <div class="status-indicator" id="powerIndicator" style="background-color: #00ff00;"></div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">网络信号强度</span>
+                        <span class="metric-value" id="signalStrength">92%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="signalStrengthBar" style="width: 92%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">系统运行时间</span>
+                        <span class="metric-value" id="uptime">00:00:00</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">活跃传感器</span>
+                        <span class="metric-value" id="activeSensors">7/7</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">硝酸甘油温度趋势</span>
+                        <span class="metric-value" id="nitroTrend">稳定</span>
+                        <span class="trend-indicator" id="nitroTrendIcon">→</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">铝热剂温度趋势</span>
+                        <span class="metric-value" id="thermiteTrend">稳定</span>
+                        <span class="trend-indicator" id="thermiteTrendIcon">→</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">内存使用情况</span>
+                        <span class="metric-value" id="memoryUsage">45%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="memoryUsageBar" style="width: 45%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">CPU温度</span>
+                        <span class="metric-value" id="cpuTemperature">48°C</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="cpuTemperatureBar" style="width: 48%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">系统警告数量</span>
+                        <span class="metric-value" id="warningCount">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">安全状态评分</span>
+                        <span class="metric-value" id="securityScore">99.8%</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="securityScoreBar" style="width: 99.8%; background-color: #00ff00;"></div>
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">环境温度</span>
+                        <span class="metric-value" id="ambientTemperature">22.5°C</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">湿度百分比</span>
+                        <span class="metric-value" id="humidity">45%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="control-panel">
+            <div class="control-section">
+                <h2>系统控制</h2>
+                <div class="button-group">
+                    <button class="btn" id="armBtn">激活协议</button>
+                    <button class="btn" id="disarmBtn">解除协议</button>
+                    <button class="btn btn-danger" id="simulateBtn">模拟入侵</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>入侵模拟</h2>
+                <div class="button-group">
+                    <button class="btn" id="doorBtn">打开主门</button>
+                    <button class="btn" id="powerBtn">切断电源</button>
+                    <button class="btn" id="anesthesiaBtn">释放麻醉气体</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>配置面板</h2>
+                <div class="config-group">
+                    <div class="config-item">
+                        <label for="nitroTemp">硝化甘油初始温度 (°C)</label>
+                        <input type="number" id="nitroTemp" min="-20" max="50" step="0.5" value="-10">
+                    </div>
+                    <div class="config-item">
+                        <label for="thermiteTemp">铝热剂初始温度 (°C)</label>
+                        <input type="number" id="thermiteTemp" min="0" max="100" step="0.5" value="25">
+                    </div>
+                    <div class="config-item">
+                        <label for="sensorSensitivity">传感器敏感度 (%)</label>
+                        <input type="range" id="sensorSensitivity" min="50" max="100" step="5" value="80">
+                        <span id="sensitivityValue">80</span>
+                    </div>
+                    <div class="button-group" style="margin-top: 15px;">
+                        <button class="btn" id="applyConfigBtn">应用配置</button>
+                        <button class="btn" id="resetConfigBtn">重置默认值</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用户选择界面 -->
+        <div class="control-panel" id="userChoicePanel" style="display: none;">
+            <div class="control-section">
+                <h2>故事决策点</h2>
+                <div id="choiceQuestion" class="log-entry" style="margin-bottom: 20px; font-size: 1.1em; color: #00ffff;"></div>
+                <div id="choiceOptions" class="button-group"></div>
+            </div>
+        </div>
+
+        <!-- 可视化图表 -->
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>传感器状态图表</h3>
+                <div class="chart-controls">
+                    <button class="btn btn-small" id="sensorZoomIn">放大</button>
+                    <button class="btn btn-small" id="sensorZoomOut">缩小</button>
+                    <button class="btn btn-small" id="sensorResetZoom">重置</button>
+                </div>
+                <canvas id="sensorChart" width="400" height="250"></canvas>
+            </div>
+            <div class="status-card">
+                <h3>化学物质温度</h3>
+                <div class="chart-controls">
+                    <button class="btn btn-small" id="chemicalZoomIn">放大</button>
+                    <button class="btn btn-small" id="chemicalZoomOut">缩小</button>
+                    <button class="btn btn-small" id="chemicalResetZoom">重置</button>
+                </div>
+                <canvas id="chemicalChart" width="400" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- 传感器状态 -->
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>传感器状态</h3>
+                <div class="status-item">
+                    <span class="status-label">主门状态</span>
+                    <span class="status-value value-normal" id="doorStatus">关闭</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">生命体征</span>
+                    <span class="status-value value-normal" id="vitalStatus">正常</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">信号发射</span>
+                    <span class="status-value value-normal" id="signalStatus">正常</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">地理围栏</span>
+                    <span class="status-value value-normal" id="geofenceStatus">安全</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">电源状态</span>
+                    <span class="status-value value-normal" id="powerStatus">主电源</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">空气分析</span>
+                    <span class="status-value value-normal" id="airStatus">正常</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">压感地板</span>
+                    <span class="status-value value-normal" id="pressureStatus">安全</span>
+                </div>
+            </div>
+
+            <!-- 化学物质状态 -->
+            <div class="status-card">
+                <h3>化学物质状态</h3>
+                <div class="status-item">
+                    <span class="status-label">硝化甘油</span>
+                    <span class="status-value value-normal" id="nitroStatus">-10.0°C</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">硝化甘油稳定性</span>
+                    <span class="status-value value-normal" id="nitroStable">稳定</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">铝热剂</span>
+                    <span class="status-value value-normal" id="thermiteStatus">25.0°C</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">铝热剂稳定性</span>
+                    <span class="status-value value-normal" id="thermiteStable">稳定</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">燃烧波速度</span>
+                    <span class="status-value value-normal" id="burnRate">0.0 m/s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志区域 -->
+        <div class="log-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2>系统日志</h2>
+                <div class="log-filters">
+                    <label style="margin-right: 10px; color: #87ceeb;">过滤:</label>
+                    <button class="btn btn-small" id="filterAll" style="margin-right: 5px;">全部</button>
+                    <button class="btn btn-small" id="filterInfo" style="margin-right: 5px;">信息</button>
+                    <button class="btn btn-small" id="filterWarning" style="margin-right: 5px;">警告</button>
+                    <button class="btn btn-small" id="filterAlert" style="margin-right: 5px;">警报</button>
+                </div>
+            </div>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry log-info">
+                    <span class="log-time">[初始化]</span>
+                    临界协议系统已加载 - 等待激活
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 音效系统 - 使用Web Audio API生成科幻音效
+        class SoundSystem {
+            constructor() {
+                this.audioContext = null;
+                this.isMuted = false;
+            }
+
+            // 初始化音频上下文
+            init() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.log('Web Audio API不支持');
+                }
+            }
+
+            // 生成基础音效
+            playTone(frequency, duration, type = 'sine', volume = 0.2) {
+                if (!this.audioContext || this.isMuted) return;
+
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+
+                oscillator.frequency.value = frequency;
+                oscillator.type = type;
+
+                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + duration);
+            }
+
+            // 系统激活音效
+            playSystemActivate() {
+                this.playTone(440, 0.2);
+                this.playTone(554.37, 0.2, 'sine', 0.15);
+                this.playTone(659.25, 0.3, 'sine', 0.1);
+            }
+
+            // 系统解除音效
+            playSystemDeactivate() {
+                this.playTone(659.25, 0.15);
+                this.playTone(554.37, 0.15, 'sine', 0.15);
+                this.playTone(440, 0.2, 'sine', 0.1);
+            }
+
+            // 传感器触发音效
+            playSensorTrigger() {
+                this.playTone(880, 0.1, 'square', 0.15);
+                this.playTone(440, 0.15, 'square', 0.1);
+            }
+
+            // 协议触发音效
+            playProtocolTrigger() {
+                // 渐增的音调，营造紧张感
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        this.playTone(220 + (i * 20), 0.05, 'sawtooth', 0.2);
+                    }, i * 30);
+                }
+                // 最终的爆发音效
+                setTimeout(() => {
+                    this.playTone(100, 0.5, 'sawtooth', 0.3);
+                }, 300);
+            }
+
+            // 配置应用音效
+            playConfigApply() {
+                this.playTone(523.25, 0.15, 'triangle', 0.15);
+                this.playTone(587.33, 0.15, 'triangle', 0.12);
+                this.playTone(659.25, 0.2, 'triangle', 0.1);
+            }
+
+            // 故事场景推进音效
+            playStoryAdvance() {
+                this.playTone(330, 0.2, 'sine', 0.1);
+                this.playTone(440, 0.2, 'sine', 0.12);
+            }
+
+            // 切换静音状态
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                return this.isMuted;
+            }
+        }
+
+        // 初始化音效系统
+        const soundSystem = new SoundSystem();
+        
+        // 日志过滤功能
+        function setupLogFilters() {
+            const filterAllBtn = document.getElementById('filterAll');
+            const filterInfoBtn = document.getElementById('filterInfo');
+            const filterWarningBtn = document.getElementById('filterWarning');
+            const filterAlertBtn = document.getElementById('filterAlert');
+            
+            // 显示所有日志
+            filterAllBtn.addEventListener('click', () => {
+                const logEntries = document.querySelectorAll('.log-entry');
+                logEntries.forEach(entry => {
+                    entry.classList.remove('hidden');
+                });
+                
+                // 更新按钮样式
+                updateFilterButtonStyles('all');
+            });
+            
+            // 只显示信息日志
+            filterInfoBtn.addEventListener('click', () => {
+                filterLogsBySeverity('info');
+                updateFilterButtonStyles('info');
+            });
+            
+            // 只显示警告日志
+            filterWarningBtn.addEventListener('click', () => {
+                filterLogsBySeverity('warning');
+                updateFilterButtonStyles('warning');
+            });
+            
+            // 只显示警报日志
+            filterAlertBtn.addEventListener('click', () => {
+                filterLogsBySeverity('alert');
+                updateFilterButtonStyles('alert');
+            });
+        }
+        
+        // 根据严重程度过滤日志
+        function filterLogsBySeverity(severity) {
+            const logEntries = document.querySelectorAll('.log-entry');
+            logEntries.forEach(entry => {
+                if (entry.classList.contains(`log-${severity}`)) {
+                    entry.classList.remove('hidden');
+                } else {
+                    entry.classList.add('hidden');
+                }
+            });
+        }
+        
+        // 更新过滤按钮的样式
+        function updateFilterButtonStyles(activeFilter) {
+            const buttons = [
+                { id: 'filterAll', filter: 'all' },
+                { id: 'filterInfo', filter: 'info' },
+                { id: 'filterWarning', filter: 'warning' },
+                { id: 'filterAlert', filter: 'alert' }
+            ];
+            
+            buttons.forEach(btn => {
+                const element = document.getElementById(btn.id);
+                if (btn.filter === activeFilter) {
+                    element.style.background = 'rgba(0, 150, 200, 0.8)';
+                    element.style.boxShadow = '0 0 15px rgba(0, 255, 255, 0.6)';
+                } else {
+                    element.style.background = 'rgba(0, 100, 150, 0.6)';
+                    element.style.boxShadow = '';
+                }
+            });
+        }
+
+        // 时间工具函数
+        function getCurrentTime() {
+            return new Date();
+        }
+
+        function formatTime(date) {
+            return date.toISOString().replace('T', ' ').substr(0, 19);
+        }
+
+        // 更新当前时间
+        function updateCurrentTime() {
+            document.getElementById('currentTime').textContent = formatTime(getCurrentTime());
+        }
+
+        // 日志系统
+        function addLog(message, severity = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            
+            // 设置日志条目的类名，包含严重程度
+            logEntry.className = `log-entry log-${severity}`;
+            
+            // 根据严重程度设置不同的样式和前缀
+            let logContent;
+            switch(severity) {
+                case 'warning':
+                    logContent = `<span class="log-time">[${formatTime(getCurrentTime())}]</span> <span class="log-warning">⚠️ ${message}</span>`;
+                    break;
+                case 'alert':
+                    logContent = `<span class="log-time">[${formatTime(getCurrentTime())}]</span> <span class="log-alert">🚨 ${message}</span>`;
+                    break;
+                case 'info':
+                default:
+                    logContent = `<span class="log-time">[${formatTime(getCurrentTime())}]</span> <span class="log-info">ℹ️ ${message}</span>`;
+                    break;
+            }
+            
+            logEntry.innerHTML = logContent;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 临界协议系统
+        class CriticalProtocol {
+            constructor() {
+                this.isArmed = false;
+                this.isTriggered = false;
+                this.armTime = null;
+                this.startTime = getCurrentTime();
+                
+                // 传感器状态
+                this.sensors = {
+                    door: false,           // 主门状态
+                    vitalSigns: true,      // 生命体征
+                    signal: true,          // 信号发射
+                    geofence: true,        // 地理围栏
+                    power: 'main',         // 电源状态
+                    air: 'normal',         // 空气分析
+                    pressure: false        // 压感地板
+                };
+                
+                // 化学物质状态
+                this.chemicals = {
+                    nitroglycerin: {
+                        temperature: -10.0,
+                        stable: true
+                    },
+                    thermite: {
+                        temperature: 25.0,
+                        stable: true,
+                        burnRate: 0.0
+                    }
+                };
+                
+                // 仪表盘指标
+                this.dashboardMetrics = {
+                    responseTime: 2.1,     // 传感器响应时间 (ms)
+                    stabilityIndex: 98.5,  // 化学稳定性指数 (%)
+                    uptime: 0,             // 系统运行时间 (ms)
+                    activeSensors: 7,      // 活跃传感器数量
+                    sensorHealth: 95,      // 传感器健康评分 (0-100)
+                    systemLoad: 35,        // 系统负载 (%)
+                    powerStatus: 'main',   // 电源状态
+                    signalStrength: 92,    // 网络信号强度 (%)
+                    nitroTrend: 'stable',  // 硝酸甘油温度趋势
+                    nitroTrendValue: 0,    // 硝酸甘油温度趋势值 (-1=下降, 0=稳定, 1=上升)
+                    thermiteTrend: 'stable', // 铝热剂温度趋势
+                    thermiteTrendValue: 0   // 铝热剂温度趋势值 (-1=下降, 0=稳定, 1=上升)
+                };
+                
+                // 化学物质历史温度数据
+                this.chemicalHistory = {
+                    nitroglycerin: [],
+                    thermite: []
+                };
+                
+                // 定时更新仪表盘
+                this.dashboardInterval = setInterval(() => {
+                    this.updateDashboardMetrics();
+                }, 1000);
+                
+                this.updateDisplay();
+                this.updateDashboardMetrics();
+            }
+            
+            arm() {
+                if (this.isTriggered) {
+                    addLog('系统已触发，无法激活', 'alert');
+                    return;
+                }
+                
+                this.isArmed = true;
+                this.armTime = getCurrentTime();
+                addLog('临界协议已激活 - 精密的钟表机芯开始运转');
+                this.updateDisplay();
+                soundSystem.playSystemActivate();
+            }
+            
+            disarm() {
+                this.isArmed = false;
+                addLog('临界协议已解除');
+                this.updateDisplay();
+                soundSystem.playSystemDeactivate();
+            }
+            
+            checkTrigger() {
+                if (!this.isArmed || this.isTriggered) return false;
+                
+                // 检查传感器触发条件
+                if (this.sensors.door ||            // 门被打开
+                    !this.sensors.vitalSigns ||     // 生命体征异常
+                    !this.sensors.signal ||         // 信号中断
+                    !this.sensors.geofence ||       // 地理围栏突破
+                    this.sensors.power === 'none' || // 电源完全中断
+                    this.sensors.air !== 'normal' || // 空气异常
+                    this.sensors.pressure) {        // 压感地板触发
+                    
+                    this.trigger();
+                    return true;
+                }
+                
+                // 检查化学物质状态
+                if (!this.chemicals.nitroglycerin.stable || !this.chemicals.thermite.stable) {
+                    this.trigger();
+                    return true;
+                }
+                
+                return false;
+            }
+            
+            trigger() {
+                this.isTriggered = true;
+                this.isArmed = false;
+                
+                addLog('=== 临界协议触发! ===', 'alert');
+                addLog('系统响应: 铝热剂引燃 -> 硝化甘油起爆 -> 连锁反应启动', 'alert');
+                addLog('预测后果: 2500°C高温, 冲击波传播, 化学能完全释放', 'alert');
+                addLog('系统状态: 不可逆触发, 倒计时终止', 'alert');
+                
+                // 更新化学物质状态
+                this.chemicals.thermite.temperature = 2500.0;
+                this.chemicals.thermite.stable = false;
+                this.chemicals.thermite.burnRate = 120.0;
+                this.chemicals.nitroglycerin.stable = false;
+                
+                this.updateDisplay();
+                soundSystem.playProtocolTrigger();
+            }
+            
+            // 模拟入侵行为
+            simulateInvasion() {
+                addLog('检测到外部入侵 - 门被打开，震动强度增加', 'alert');
+                this.sensors.door = true;
+                this.updateDisplay();
+                
+                // 检查是否触发
+                if (this.checkTrigger()) {
+                    addLog('入侵行为触发临界协议!', 'alert');
+                }
+            }
+            
+            // 传感器控制
+            openDoor() {
+                this.sensors.door = true;
+                addLog('主门被打开!', 'alert');
+                this.updateDisplay();
+                this.checkTrigger();
+                soundSystem.playSensorTrigger();
+            }
+            
+            cutPower() {
+                this.sensors.power = 'backup';
+                addLog('主电源被切断! 备用电源激活 - 镁箔燃烧产生干扰', 'alert');
+                this.updateDisplay();
+                this.checkTrigger();
+                soundSystem.playSensorTrigger();
+            }
+            
+            releaseAnesthesia() {
+                this.sensors.air = 'anesthesia';
+                addLog('空气分析: 检测到麻醉气体!', 'alert');
+                this.updateDisplay();
+                this.checkTrigger();
+                soundSystem.playSensorTrigger();
+            }
+            
+            // 更新显示
+            updateDisplay() {
+                // 更新系统状态
+                const systemIndicator = document.getElementById('systemIndicator');
+                const systemStatus = document.getElementById('systemStatus');
+                
+                if (this.isTriggered) {
+                    systemIndicator.className = 'status-indicator status-triggered';
+                    systemStatus.textContent = '协议触发!';
+                } else if (this.isArmed) {
+                    systemIndicator.className = 'status-indicator status-active';
+                    systemStatus.textContent = '协议激活';
+                } else {
+                    systemIndicator.className = 'status-indicator status-safe';
+                    systemStatus.textContent = '系统就绪';
+                }
+                
+                // 更新传感器状态
+                document.getElementById('doorStatus').textContent = this.sensors.door ? '打开' : '关闭';
+                document.getElementById('doorStatus').className = this.sensors.door ? 'status-value value-danger' : 'status-value value-normal';
+                
+                document.getElementById('vitalStatus').textContent = this.sensors.vitalSigns ? '正常' : '异常';
+                document.getElementById('vitalStatus').className = this.sensors.vitalSigns ? 'status-value value-normal' : 'status-value value-danger';
+                
+                document.getElementById('signalStatus').textContent = this.sensors.signal ? '正常' : '中断';
+                document.getElementById('signalStatus').className = this.sensors.signal ? 'status-value value-normal' : 'status-value value-danger';
+                
+                document.getElementById('geofenceStatus').textContent = this.sensors.geofence ? '安全' : '突破';
+                document.getElementById('geofenceStatus').className = this.sensors.geofence ? 'status-value value-normal' : 'status-value value-danger';
+                
+                document.getElementById('powerStatus').textContent = this.sensors.power === 'main' ? '主电源' : this.sensors.power === 'backup' ? '备用电源' : '无电源';
+                document.getElementById('powerStatus').className = this.sensors.power === 'none' ? 'status-value value-danger' : this.sensors.power === 'backup' ? 'status-value value-warning' : 'status-value value-normal';
+                
+                document.getElementById('airStatus').textContent = this.sensors.air;
+                document.getElementById('airStatus').className = this.sensors.air !== 'normal' ? 'status-value value-danger' : 'status-value value-normal';
+                
+                document.getElementById('pressureStatus').textContent = this.sensors.pressure ? '触发' : '安全';
+                document.getElementById('pressureStatus').className = this.sensors.pressure ? 'status-value value-danger' : 'status-value value-normal';
+                
+                // 更新化学物质状态
+                document.getElementById('nitroStatus').textContent = this.chemicals.nitroglycerin.temperature.toFixed(1) + '°C';
+                document.getElementById('nitroStable').textContent = this.chemicals.nitroglycerin.stable ? '稳定' : '不稳定';
+                document.getElementById('nitroStable').className = this.chemicals.nitroglycerin.stable ? 'status-value value-normal' : 'status-value value-danger';
+                
+                document.getElementById('thermiteStatus').textContent = this.chemicals.thermite.temperature.toFixed(1) + '°C';
+                document.getElementById('thermiteStable').textContent = this.chemicals.thermite.stable ? '稳定' : '点燃';
+                document.getElementById('thermiteStable').className = this.chemicals.thermite.stable ? 'status-value value-normal' : 'status-value value-danger';
+                
+                document.getElementById('burnRate').textContent = this.chemicals.thermite.burnRate.toFixed(1) + ' m/s';
+                document.getElementById('burnRate').className = this.chemicals.thermite.burnRate > 0 ? 'status-value value-danger' : 'status-value value-normal';
+            }
+            
+            // 更新仪表盘指标
+            updateDashboardMetrics() {
+                // 计算传感器响应时间 (基于系统状态动态变化)
+                let responseTime = 2.1;
+                if (this.isTriggered) {
+                    responseTime = Math.random() * 1.5 + 0.5; // 触发时响应更快
+                } else if (this.isArmed) {
+                    responseTime = Math.random() * 2 + 1.5; // 激活时响应较快
+                } else {
+                    responseTime = Math.random() * 3 + 1; // 就绪时响应正常
+                }
+                this.dashboardMetrics.responseTime = parseFloat(responseTime.toFixed(1));
+                
+                // 计算化学稳定性指数
+                let nitroStability = this.chemicals.nitroglycerin.stable ? 100 : 0;
+                let thermiteStability = this.chemicals.thermite.stable ? 100 : 0;
+                
+                // 根据温度调整稳定性指数
+                if (this.chemicals.nitroglycerin.stable) {
+                    const nitroTemp = this.chemicals.nitroglycerin.temperature;
+                    if (nitroTemp > 30) {
+                        nitroStability = 0;
+                    } else if (nitroTemp > 20) {
+                        nitroStability = 50 + (30 - nitroTemp) * 5;
+                    } else if (nitroTemp > 0) {
+                        nitroStability = 80 + (20 - nitroTemp) * 1;
+                    }
+                }
+                
+                if (this.chemicals.thermite.stable) {
+                    const thermiteTemp = this.chemicals.thermite.temperature;
+                    if (thermiteTemp > 2000) {
+                        thermiteStability = 0;
+                    } else if (thermiteTemp > 1000) {
+                        thermiteStability = 50 + (2000 - thermiteTemp) * 0.05;
+                    } else if (thermiteTemp > 100) {
+                        thermiteStability = 80 + (1000 - thermiteTemp) * 0.02;
+                    }
+                }
+                
+                this.dashboardMetrics.stabilityIndex = parseFloat(((nitroStability + thermiteStability) / 2).toFixed(1));
+                
+                // 更新系统运行时间
+                this.dashboardMetrics.uptime = Date.now() - this.startTime.getTime();
+                
+                // 计算活跃传感器数量
+                let activeSensors = 0;
+                if (!this.sensors.door) activeSensors++;
+                if (this.sensors.vitalSigns) activeSensors++;
+                if (this.sensors.signal) activeSensors++;
+                if (this.sensors.geofence) activeSensors++;
+                if (this.sensors.power !== 'none') activeSensors++;
+                if (this.sensors.air === 'normal') activeSensors++;
+                if (!this.sensors.pressure) activeSensors++;
+                this.dashboardMetrics.activeSensors = activeSensors;
+                
+                // 计算传感器健康评分
+                let sensorHealth = 95;
+                if (this.isTriggered) {
+                    sensorHealth = Math.random() * 30 + 50; // 触发时健康下降
+                } else if (this.isArmed) {
+                    sensorHealth = Math.random() * 20 + 70; // 激活时健康略有下降
+                } else {
+                    sensorHealth = Math.random() * 10 + 90; // 就绪时健康良好
+                }
+                this.dashboardMetrics.sensorHealth = Math.floor(sensorHealth);
+                
+                // 计算系统负载
+                let systemLoad = 35;
+                if (this.isTriggered) {
+                    systemLoad = Math.random() * 40 + 50; // 触发时负载升高
+                } else if (this.isArmed) {
+                    systemLoad = Math.random() * 30 + 20; // 激活时负载中等
+                } else {
+                    systemLoad = Math.random() * 20 + 10; // 就绪时负载较低
+                }
+                this.dashboardMetrics.systemLoad = Math.floor(systemLoad);
+                
+                // 更新电源状态
+                this.dashboardMetrics.powerStatus = this.sensors.power;
+                
+                // 计算网络信号强度
+                let signalStrength = 92;
+                if (!this.sensors.signal) {
+                    signalStrength = 0; // 信号中断
+                } else if (this.isTriggered) {
+                    signalStrength = Math.random() * 40 + 30; // 触发时信号较弱
+                } else if (this.isArmed) {
+                    signalStrength = Math.random() * 20 + 70; // 激活时信号中等
+                } else {
+                    signalStrength = Math.random() * 15 + 85; // 就绪时信号良好
+                }
+                this.dashboardMetrics.signalStrength = Math.floor(signalStrength);
+                
+                // 分析硝酸甘油温度趋势
+                this.chemicalHistory.nitroglycerin.push(this.chemicals.nitroglycerin.temperature);
+                if (this.chemicalHistory.nitroglycerin.length > 10) {
+                    this.chemicalHistory.nitroglycerin.shift();
+                }
+                
+                if (this.chemicalHistory.nitroglycerin.length >= 3) {
+                    const recent = this.chemicalHistory.nitroglycerin.slice(-3);
+                    const trend = recent[2] - recent[0];
+                    
+                    if (trend > 2.0) {
+                        this.dashboardMetrics.nitroTrend = '上升';
+                        this.dashboardMetrics.nitroTrendValue = 1;
+                    } else if (trend < -2.0) {
+                        this.dashboardMetrics.nitroTrend = '下降';
+                        this.dashboardMetrics.nitroTrendValue = -1;
+                    } else {
+                        this.dashboardMetrics.nitroTrend = '稳定';
+                        this.dashboardMetrics.nitroTrendValue = 0;
+                    }
+                }
+                
+                // 分析铝热剂温度趋势
+                this.chemicalHistory.thermite.push(this.chemicals.thermite.temperature);
+                if (this.chemicalHistory.thermite.length > 10) {
+                    this.chemicalHistory.thermite.shift();
+                }
+                
+                if (this.chemicalHistory.thermite.length >= 3) {
+                    const recent = this.chemicalHistory.thermite.slice(-3);
+                    const trend = recent[2] - recent[0];
+                    
+                    if (trend > 5.0) {
+                        this.dashboardMetrics.thermiteTrend = '上升';
+                        this.dashboardMetrics.thermiteTrendValue = 1;
+                    } else if (trend < -5.0) {
+                        this.dashboardMetrics.thermiteTrend = '下降';
+                        this.dashboardMetrics.thermiteTrendValue = -1;
+                    } else {
+                        this.dashboardMetrics.thermiteTrend = '稳定';
+                        this.dashboardMetrics.thermiteTrendValue = 0;
+                    }
+                }
+                
+                // 更新DOM显示
+                this.updateDashboardDisplay();
+            }
+            
+            // 更新仪表盘显示
+            updateDashboardDisplay() {
+                // 传感器响应时间
+                document.getElementById('responseTime').textContent = this.dashboardMetrics.responseTime + ' ms';
+                const responseBar = document.getElementById('responseTimeBar');
+                const responseValue = Math.min(100, (5 - this.dashboardMetrics.responseTime) / 5 * 100);
+                responseBar.style.width = responseValue + '%';
+                
+                // 根据响应时间设置颜色
+                if (this.dashboardMetrics.responseTime < 2) {
+                    responseBar.style.backgroundColor = '#00ff00';
+                } else if (this.dashboardMetrics.responseTime < 4) {
+                    responseBar.style.backgroundColor = '#ffff00';
+                } else {
+                    responseBar.style.backgroundColor = '#ff0000';
+                }
+                
+                // 化学稳定性指数
+                document.getElementById('stabilityIndex').textContent = this.dashboardMetrics.stabilityIndex + '%';
+                const stabilityBar = document.getElementById('stabilityIndexBar');
+                stabilityBar.style.width = this.dashboardMetrics.stabilityIndex + '%';
+                
+                // 根据稳定性指数设置颜色
+                if (this.dashboardMetrics.stabilityIndex > 70) {
+                    stabilityBar.style.backgroundColor = '#00ff00';
+                } else if (this.dashboardMetrics.stabilityIndex > 30) {
+                    stabilityBar.style.backgroundColor = '#ffff00';
+                } else {
+                    stabilityBar.style.backgroundColor = '#ff0000';
+                }
+                
+                // 系统运行时间
+                const uptime = this.dashboardMetrics.uptime;
+                const hours = Math.floor(uptime / (1000 * 60 * 60));
+                const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((uptime % (1000 * 60)) / 1000);
+                const formattedUptime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                document.getElementById('uptime').textContent = formattedUptime;
+                
+                // 活跃传感器数量
+                document.getElementById('activeSensors').textContent = this.dashboardMetrics.activeSensors + '/7';
+                
+                // 传感器健康评分
+                document.getElementById('sensorHealth').textContent = this.dashboardMetrics.sensorHealth;
+                const sensorHealthBar = document.getElementById('sensorHealthBar');
+                sensorHealthBar.style.width = this.dashboardMetrics.sensorHealth + '%';
+                
+                // 根据健康评分设置颜色
+                if (this.dashboardMetrics.sensorHealth > 70) {
+                    sensorHealthBar.style.backgroundColor = '#00ff00';
+                } else if (this.dashboardMetrics.sensorHealth > 30) {
+                    sensorHealthBar.style.backgroundColor = '#ffff00';
+                } else {
+                    sensorHealthBar.style.backgroundColor = '#ff0000';
+                }
+                
+                // 系统负载
+                document.getElementById('systemLoad').textContent = this.dashboardMetrics.systemLoad + '%';
+                const systemLoadBar = document.getElementById('systemLoadBar');
+                systemLoadBar.style.width = this.dashboardMetrics.systemLoad + '%';
+                
+                // 根据负载设置颜色
+                if (this.dashboardMetrics.systemLoad < 40) {
+                    systemLoadBar.style.backgroundColor = '#00ff00';
+                } else if (this.dashboardMetrics.systemLoad < 70) {
+                    systemLoadBar.style.backgroundColor = '#ffff00';
+                } else {
+                    systemLoadBar.style.backgroundColor = '#ff0000';
+                }
+                
+                // 电源状态
+                const powerStatusText = {
+                    'main': '主电源',
+                    'backup': '备用电源',
+                    'none': '无电源'
+                };
+                document.getElementById('powerStatus').textContent = powerStatusText[this.dashboardMetrics.powerStatus] || '未知';
+                
+                const powerIndicator = document.getElementById('powerIndicator');
+                const powerColors = {
+                    'main': '#00ff00',
+                    'backup': '#ffff00',
+                    'none': '#ff0000'
+                };
+                powerIndicator.style.backgroundColor = powerColors[this.dashboardMetrics.powerStatus] || '#ffffff';
+                
+                // 网络信号强度
+                document.getElementById('signalStrength').textContent = this.dashboardMetrics.signalStrength + '%';
+                const signalBar = document.getElementById('signalStrengthBar');
+                signalBar.style.width = this.dashboardMetrics.signalStrength + '%';
+                
+                // 根据信号强度设置颜色
+                if (this.dashboardMetrics.signalStrength > 70) {
+                    signalBar.style.backgroundColor = '#00ff00';
+                } else if (this.dashboardMetrics.signalStrength > 30) {
+                    signalBar.style.backgroundColor = '#ffff00';
+                } else {
+                    signalBar.style.backgroundColor = '#ff0000';
+                }
+                
+                // 硝酸甘油温度趋势
+                document.getElementById('nitroTrend').textContent = this.dashboardMetrics.nitroTrend;
+                const nitroTrendIcon = document.getElementById('nitroTrendIcon');
+                
+                // 设置趋势图标和颜色
+                if (this.dashboardMetrics.nitroTrendValue === 1) {
+                    nitroTrendIcon.textContent = '↑';
+                    nitroTrendIcon.className = 'trend-indicator trend-up';
+                } else if (this.dashboardMetrics.nitroTrendValue === -1) {
+                    nitroTrendIcon.textContent = '↓';
+                    nitroTrendIcon.className = 'trend-indicator trend-down';
+                } else {
+                    nitroTrendIcon.textContent = '→';
+                    nitroTrendIcon.className = 'trend-indicator trend-stable';
+                }
+                
+                // 铝热剂温度趋势
+                document.getElementById('thermiteTrend').textContent = this.dashboardMetrics.thermiteTrend;
+                const thermiteTrendIcon = document.getElementById('thermiteTrendIcon');
+                
+                // 设置趋势图标和颜色
+                if (this.dashboardMetrics.thermiteTrendValue === 1) {
+                    thermiteTrendIcon.textContent = '↑';
+                    thermiteTrendIcon.className = 'trend-indicator trend-up';
+                } else if (this.dashboardMetrics.thermiteTrendValue === -1) {
+                    thermiteTrendIcon.textContent = '↓';
+                    thermiteTrendIcon.className = 'trend-indicator trend-down';
+                } else {
+                    thermiteTrendIcon.textContent = '→';
+                    thermiteTrendIcon.className = 'trend-indicator trend-stable';
+                }
+            }
+        }
+        
+        // 图表功能
+        let sensorChart, chemicalChart;
+        let chartData = {
+            sensorHistory: {
+                timestamps: [],
+                values: {}
+            },
+            chemicalHistory: {
+                timestamps: [],
+                nitroglycerin: [],
+                thermite: []
+            }
+        };
+
+        // 配置常量
+        const MAX_DATA_POINTS = 50; // 进一步增加历史数据点数量
+        const CHART_ANIMATION_DURATION = 1000; // 统一图表动画持续时间
+        const CHART_EASING = 'easeInOutQuart'; // 统一图表动画缓动函数
+        
+        // 初始化传感器图表
+        function initSensorChart() {
+            const ctx = document.getElementById('sensorChart').getContext('2d');
+            sensorChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['主门', '生命体征', '信号', '地理围栏', '电源', '空气', '压感地板'],
+                    datasets: [{
+                        label: '传感器状态',
+                        data: [0, 1, 1, 1, 1, 1, 0],
+                        backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                        borderColor: 'rgba(0, 255, 255, 0.8)',
+                        borderWidth: 3,
+                        borderDash: [],
+                        pointBackgroundColor: [
+                            'rgba(255, 0, 0, 1)',    // 主门 - 红色表示打开
+                            'rgba(0, 255, 0, 1)',    // 生命体征 - 绿色表示正常
+                            'rgba(0, 255, 0, 1)',    // 信号 - 绿色表示正常
+                            'rgba(0, 255, 0, 1)',    // 地理围栏 - 绿色表示安全
+                            'rgba(0, 255, 0, 1)',    // 电源 - 绿色表示正常
+                            'rgba(0, 255, 0, 1)',    // 空气 - 绿色表示正常
+                            'rgba(0, 255, 0, 1)'     // 压感地板 - 绿色表示安全
+                        ],
+                        pointBorderColor: 'rgba(0, 255, 255, 1)',
+                        pointBorderWidth: 2,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(255, 255, 255, 1)',
+                        pointHoverBorderWidth: 3,
+                        pointRadius: 6,
+                        pointHoverRadius: 10,
+                        pointHitRadius: 15,
+                        animation: {
+                            duration: CHART_ANIMATION_DURATION,
+                            easing: CHART_EASING,
+                            animateRotate: true,
+                            animateScale: true
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: CHART_ANIMATION_DURATION,
+                        easing: CHART_EASING,
+                        animateRotate: true,
+                        animateScale: true,
+                        onProgress: function(animation) {
+                            // 动画进度回调，可以添加额外的视觉效果
+                        },
+                        onComplete: function(animation) {
+                            // 动画完成回调
+                        }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: {
+                                color: 'rgba(0, 255, 255, 0.2)',
+                                borderDash: [5, 5],
+                                borderDashOffset: 5
+                            },
+                            grid: {
+                                color: 'rgba(0, 255, 255, 0.1)',
+                                circular: true
+                            },
+                            pointLabels: {
+                                color: 'rgba(0, 255, 255, 0.9)',
+                                font: {
+                                    size: 13,
+                                    weight: 'bold'
+                                },
+                                padding: 15
+                            },
+                            ticks: {
+                                color: 'rgba(0, 255, 255, 0.6)',
+                                backdropColor: 'rgba(0, 10, 30, 0.5)',
+                                backdropPadding: 3,
+                                stepSize: 0.5,
+                                beginAtZero: true,
+                                max: 1,
+                                showLabelBackdrop: true,
+                                z: 10
+                            },
+                            min: 0,
+                            max: 1
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(0, 255, 255, 0.9)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                usePointStyle: true,
+                                padding: 25
+                            },
+                            position: 'top',
+                            align: 'center'
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 10, 30, 0.95)',
+                            titleColor: 'rgba(0, 255, 255, 1)',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(0, 255, 255, 0.7)',
+                            borderWidth: 2,
+                            padding: 15,
+                            displayColors: true,
+                            cornerRadius: 8,
+                            boxPadding: 5,
+                            callbacks: {
+                                title: function(context) {
+                                    return '<strong>' + context[0].label + ' 状态</strong>';
+                                },
+                                label: function(context) {
+                                    const status = context.raw === 1 ? '正常' : '异常';
+                                    const statusColor = context.raw === 1 ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)';
+                                    return `状态: <span style="color: ${statusColor}; font-weight: bold;">${status}</span>`;
+                                },
+                                afterLabel: function(context) {
+                                    // 添加更多详细信息
+                                    const sensorName = context.label;
+                                    const additionalInfo = {
+                                        '主门': '门状态检测',
+                                        '生命体征': '生物信号监控',
+                                        '信号': '通信系统状态',
+                                        '地理围栏': '边界入侵检测',
+                                        '电源': '电力系统状态',
+                                        '空气': '环境气体分析',
+                                        '压感地板': '压力分布监控'
+                                    };
+                                    return `监控类型: ${additionalInfo[sensorName]}`;
+                                },
+                                labelColor: function(context) {
+                                    return {
+                                        borderColor: context.dataset.pointBackgroundColor[context.dataIndex],
+                                        backgroundColor: context.dataset.pointBackgroundColor[context.dataIndex],
+                                        borderWidth: 2,
+                                        borderRadius: 3
+                                    };
+                                }
+                            },
+                            usePointStyle: true,
+                            displayColors: true
+                        }
+                    },
+                    interaction: {
+                        mode: 'point',
+                        intersect: true
+                    },
+                    hover: {
+                        mode: 'point',
+                        intersect: true,
+                        onHover: function(event, elements) {
+                            // 鼠标悬停效果
+                            if (elements.length) {
+                                event.native.target.style.cursor = 'pointer';
+                            } else {
+                                event.native.target.style.cursor = 'default';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 初始化化学物质图表
+        function initChemicalChart() {
+            const ctx = document.getElementById('chemicalChart').getContext('2d');
+            chemicalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '硝化甘油 (°C)',
+                        data: [],
+                        borderColor: 'rgba(255, 0, 0, 1)',
+                        backgroundColor: 'rgba(255, 0, 0, 0.2)',
+                        borderWidth: 3,
+                        borderDash: [],
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: 'rgba(255, 0, 0, 1)',
+                        pointBorderColor: '#000',
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(255, 0, 0, 1)'
+                    }, {
+                        label: '铝热剂 (°C)',
+                        data: [],
+                        borderColor: 'rgba(255, 255, 0, 1)',
+                        backgroundColor: 'rgba(255, 255, 0, 0.2)',
+                        borderWidth: 3,
+                        borderDash: [],
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: 'rgba(255, 255, 0, 1)',
+                        pointBorderColor: '#000',
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(255, 255, 0, 1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: CHART_ANIMATION_DURATION,
+                        easing: CHART_EASING,
+                        animateRotate: true,
+                        animateScale: true,
+                        onProgress: function(animation) {
+                            // 可以添加额外的动画效果
+                        },
+                        onComplete: function(animation) {
+                            // 动画完成回调
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(0, 255, 255, 0.7)',
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '时间',
+                                color: 'rgba(0, 255, 255, 0.8)',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: function(context) {
+                                    // 添加阈值标记线
+                                    if (context.tick.value === 30 || context.tick.value === 2000) {
+                                        return context.tick.value === 30 ? 'rgba(255, 0, 0, 0.7)' : 'rgba(255, 165, 0, 0.7)';
+                                    }
+                                    return 'rgba(0, 255, 255, 0.1)';
+                                },
+                                lineWidth: function(context) {
+                                    return (context.tick.value === 30 || context.tick.value === 2000) ? 2 : 1;
+                                },
+                                drawBorder: true
+                            },
+                            ticks: {
+                                color: function(context) {
+                                    // 为阈值刻度添加特殊颜色
+                                    if (context.tick.value === 30) {
+                                        return 'rgba(255, 0, 0, 1)';
+                                    } else if (context.tick.value === 2000) {
+                                        return 'rgba(255, 165, 0, 1)';
+                                    }
+                                    return 'rgba(0, 255, 255, 0.7)';
+                                },
+                                font: {
+                                    size: function(context) {
+                                        return (context.tick.value === 30 || context.tick.value === 2000) ? 12 : 10;
+                                    },
+                                    weight: function(context) {
+                                        return (context.tick.value === 30 || context.tick.value === 2000) ? 'bold' : 'normal';
+                                    }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '温度 (°C)',
+                                color: 'rgba(0, 255, 255, 0.8)',
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(0, 255, 255, 0.8)',
+                                font: {
+                                    size: 12
+                                },
+                                usePointStyle: true,
+                                padding: 20
+                            },
+                            position: 'top'
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 10, 30, 0.95)',
+                            titleColor: 'rgba(0, 255, 255, 1)',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(0, 255, 255, 0.7)',
+                            borderWidth: 2,
+                            padding: 15,
+                            displayColors: true,
+                            cornerRadius: 8,
+                            boxPadding: 5,
+                            callbacks: {
+                                title: function(context) {
+                                    return '<strong>' + context[0].label + '</strong>';
+                                },
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += '<span style="font-weight: bold;">' + context.parsed.y.toFixed(1) + ' °C</span>';
+                                        // 添加稳定性信息
+                                        if (context.datasetIndex === 0) {
+                                            const stable = protocol.chemicals.nitroglycerin.stable;
+                                            const statusColor = stable ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)';
+                                            label += ` (<span style="color: ${statusColor}; font-weight: bold;">${stable ? '稳定' : '不稳定'}</span>)`;
+                                        } else {
+                                            const stable = protocol.chemicals.thermite.stable;
+                                            const statusColor = stable ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 165, 0, 1)';
+                                            label += ` (<span style="color: ${statusColor}; font-weight: bold;">${stable ? '稳定' : '点燃'}</span>)`;
+                                        }
+                                    }
+                                    return label;
+                                },
+                                afterLabel: function(context) {
+                                    // 添加温度阈值信息
+                                    const threshold = context.datasetIndex === 0 ? 30 : 2000;
+                                    return `阈值: ${threshold} °C`;
+                                },
+                                afterBody: function(context) {
+                                    const index = context[0].dataIndex;
+                                    const timestamp = protocol.chemicalHistory.timestamps[index];
+                                    const messages = [];
+                                    messages.push(`时间: ${timestamp}`);
+                                    
+                                    if (context[0].datasetIndex === 0 && !protocol.chemicals.nitroglycerin.stable) {
+                                        messages.push('<span style="color: red; font-weight: bold;">⚠️ 警告: 硝化甘油不稳定!</span>');
+                                    } else if (context[0].datasetIndex === 1 && !protocol.chemicals.thermite.stable) {
+                                        messages.push('<span style="color: orange; font-weight: bold;">🔥 警告: 铝热剂已点燃!</span>');
+                                    }
+                                    return messages;
+                                }
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'xy',
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'xy',
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'point',
+                        intersect: true
+                    },
+                    hover: {
+                        mode: 'point',
+                        intersect: true,
+                        onHover: function(event, elements) {
+                            // 鼠标悬停效果
+                            if (elements.length) {
+                                event.native.target.style.cursor = 'pointer';
+                            } else {
+                                event.native.target.style.cursor = 'default';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 更新传感器图表
+        function updateSensorChart(protocol) {
+            if (!sensorChart) return;
+            
+            const sensorValues = [
+                protocol.sensors.door ? 1 : 0,
+                protocol.sensors.vitalSigns ? 1 : 0,
+                protocol.sensors.signal ? 1 : 0,
+                protocol.sensors.geofence ? 1 : 0,
+                protocol.sensors.power !== 'none' ? 1 : 0,
+                protocol.sensors.air === 'normal' ? 1 : 0,
+                protocol.sensors.pressure ? 1 : 0
+            ];
+            
+            // 更新历史数据记录
+            const now = formatTime(getCurrentTime());
+            chartData.sensorHistory.timestamps.push(now);
+            chartData.sensorHistory.values[now] = [...sensorValues];
+            
+            // 限制历史数据量
+            if (chartData.sensorHistory.timestamps.length > MAX_DATA_POINTS) {
+                const oldestTime = chartData.sensorHistory.timestamps.shift();
+                delete chartData.sensorHistory.values[oldestTime];
+            }
+            
+            // 更新图表数据和颜色
+            sensorChart.data.datasets[0].data = sensorValues;
+            
+            // 根据状态更新点颜色
+            sensorChart.data.datasets[0].pointBackgroundColor = [
+                protocol.sensors.door ? 'rgba(255, 0, 0, 1)' : 'rgba(0, 255, 0, 1)',
+                protocol.sensors.vitalSigns ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)',
+                protocol.sensors.signal ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)',
+                protocol.sensors.geofence ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)',
+                protocol.sensors.power !== 'none' ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)',
+                protocol.sensors.air === 'normal' ? 'rgba(0, 255, 0, 1)' : 'rgba(255, 0, 0, 1)',
+                protocol.sensors.pressure ? 'rgba(255, 0, 0, 1)' : 'rgba(0, 255, 0, 1)'
+            ];
+            
+            // 使用带有动画的更新
+            sensorChart.update({
+                duration: 750,
+                easing: 'easeInOutQuart'
+            });
+        }
+
+        // 更新化学物质图表
+        function updateChemicalChart(protocol) {
+            if (!chemicalChart) return;
+            
+            const now = formatTime(getCurrentTime());
+            
+            // 更新历史数据记录
+            chartData.chemicalHistory.timestamps.push(now);
+            chartData.chemicalHistory.nitroglycerin.push(protocol.chemicals.nitroglycerin.temperature);
+            chartData.chemicalHistory.thermite.push(protocol.chemicals.thermite.temperature);
+            
+            // 限制历史数据量
+            if (chartData.chemicalHistory.timestamps.length > MAX_DATA_POINTS) {
+                chartData.chemicalHistory.timestamps.shift();
+                chartData.chemicalHistory.nitroglycerin.shift();
+                chartData.chemicalHistory.thermite.shift();
+            }
+            
+            // 更新图表数据
+            chemicalChart.data.labels = [...chartData.chemicalHistory.timestamps];
+            chemicalChart.data.datasets[0].data = [...chartData.chemicalHistory.nitroglycerin];
+            chemicalChart.data.datasets[1].data = [...chartData.chemicalHistory.thermite];
+            
+            // 使用带有动画的更新
+            chemicalChart.update({
+                duration: 750,
+                easing: 'easeInOutQuart',
+                complete: function() {
+                    // 更新完成后的回调
+                }
+            });
+        }
+
+        // 增强CriticalProtocol类，添加图表更新
+        CriticalProtocol.prototype.updateCharts = function() {
+            updateSensorChart(this);
+            updateChemicalChart(this);
+        };
+
+        // 覆盖updateDisplay方法，添加图表更新
+        const originalUpdateDisplay = CriticalProtocol.prototype.updateDisplay;
+        CriticalProtocol.prototype.updateDisplay = function() {
+            originalUpdateDisplay.call(this);
+            this.updateCharts();
+        };
+
+        // 用户选择系统
+        function showUserChoice(question, choices, onChoiceMade) {
+            const choicePanel = document.getElementById('userChoicePanel');
+            const choiceQuestion = document.getElementById('choiceQuestion');
+            const choiceOptions = document.getElementById('choiceOptions');
+            
+            // 清空之前的选项
+            choiceOptions.innerHTML = '';
+            
+            // 设置问题
+            choiceQuestion.textContent = question;
+            
+            // 创建选项按钮
+            choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.className = 'btn';
+                button.textContent = choice.text;
+                button.addEventListener('click', () => {
+                    // 隐藏选择面板
+                    choicePanel.style.display = 'none';
+                    // 调用回调函数，传入选择结果
+                    onChoiceMade(choice.value);
+                });
+                choiceOptions.appendChild(button);
+            });
+            
+            // 显示选择面板
+            choicePanel.style.display = 'block';
+        }
+        
+        // 分支故事场景模拟功能
+        function simulateStoryScene() {
+            addLog('=== 开始故事场景模拟 ===', 'alert');
+            addLog('2033年秋，A国"深蓝"地下研究综合体 - 陈昭博士正在准备...', 'alert');
+            
+            // 1. 陈昭博士设置系统
+            setTimeout(() => {
+                addLog('陈昭博士: 开始设置临界协议系统');
+                soundSystem.playStoryAdvance();
+            }, 1000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 准备硝化甘油 - 冷却至-10°C');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 配置铝热剂 - 添加硝酸钡和超细镁粉');
+                soundSystem.playStoryAdvance();
+            }, 5000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 设置触发条件 - 七扇区传感器网络已就绪');
+                protocol.arm();
+            }, 8000);
+            
+            // 2. 模拟B国部队入侵
+            setTimeout(() => {
+                addLog('外部动静: 爆炸声接近, 震动强度增加', 'alert');
+                soundSystem.playStoryAdvance();
+            }, 12000);
+            
+            setTimeout(() => {
+                addLog('B国工兵: 开始切割防爆门', 'alert');
+                soundSystem.playStoryAdvance();
+            }, 15000);
+            
+            setTimeout(() => {
+                protocol.openDoor();
+            }, 18000);
+            
+            // 3. 谈判过程 - 第一决策点
+            setTimeout(() => {
+                addLog('陈昭博士: 这不是虚张声势, 系统已完全激活');
+                soundSystem.playStoryAdvance();
+                
+                // 显示用户选择
+                showUserChoice(
+                    'B国铁砧小队已进入实验室，他们要求你解除临界协议。你将如何回应？',
+                    [
+                        { text: '保持冷静，继续谈判', value: 'negotiate' },
+                        { text: '威胁激活系统，迫使他们撤离', value: 'threaten' },
+                        { text: '假装同意，但秘密维持系统激活', value: 'deceive' }
+                    ],
+                    (choice) => handleFirstChoice(choice)
+                );
+            }, 20000);
+        }
+        
+        // 处理第一个选择
+        function handleFirstChoice(choice) {
+            if (choice === 'negotiate') {
+                addLog('陈昭博士: 我们可以和平解决，但你们必须立即停止入侵行为', 'info');
+                setTimeout(() => {
+                    addLog('B国铁砧: 我们接受协议, 放下武器', 'info');
+                    soundSystem.playStoryAdvance();
+                    continuePeacefulEnding();
+                }, 3000);
+            } else if (choice === 'threaten') {
+                addLog('陈昭博士: 后退！再靠近一步，整个综合体将化为灰烬！', 'alert');
+                setTimeout(() => {
+                    addLog('B国铁砧: 别冲动！我们需要冷静下来谈谈', 'warning');
+                    soundSystem.playStoryAdvance();
+                    continueTenseNegotiation();
+                }, 3000);
+            } else if (choice === 'deceive') {
+                addLog('陈昭博士: 好的，我会解除系统。请保持冷静', 'info');
+                setTimeout(() => {
+                    addLog('陈昭博士: [小声] 系统仍在激活状态，他们不会发现', 'warning');
+                    addLog('B国铁砧: 这还差不多。现在我们来谈谈条件', 'info');
+                    soundSystem.playStoryAdvance();
+                    continueDeceptionPath();
+                }, 3000);
+            }
+        }
+        
+        // 和平结局分支
+        function continuePeacefulEnding() {
+            setTimeout(() => {
+                addLog('B国部队: 开始撤离', 'info');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 开始拆除 - 物理隔离, 低温维持, 化学惰化', 'info');
+                protocol.disarm();
+            }, 6000);
+            
+            setTimeout(() => {
+                addLog('=== 故事场景模拟完成 - 和平解决 ===', 'alert');
+                addLog('系统已安全解除，危机和平解决', 'info');
+                soundSystem.playSystemDeactivate();
+            }, 9000);
+        }
+        
+        // 紧张谈判分支
+        function continueTenseNegotiation() {
+            setTimeout(() => {
+                addLog('陈昭博士: 你们必须完全撤离，否则我将激活所有防御系统', 'alert');
+                
+                // 第二决策点
+                showUserChoice(
+                    'B国部队犹豫不决，你需要进一步行动。你将如何做？',
+                    [
+                        { text: '降低姿态，寻求妥协方案', value: 'compromise' },
+                        { text: '展示系统激活状态，增加压力', value: 'show_activation' },
+                        { text: '直接激活系统的次要防御措施', value: 'activate_defense' }
+                    ],
+                    (choice) => handleSecondChoice(choice)
+                );
+            }, 3000);
+        }
+        
+        // 欺骗路径分支
+        function continueDeceptionPath() {
+            setTimeout(() => {
+                addLog('B国铁砧: 我们需要带走所有研究资料和设备', 'info');
+                
+                // 第二决策点 - 欺骗路径
+                showUserChoice(
+                    'B国要求带走研究资料，你需要决定如何应对。你将如何做？',
+                    [
+                        { text: '同意条件，保存生命', value: 'agree' },
+                        { text: '拒绝，暴露系统仍在激活', value: 'refuse' },
+                        { text: '拖延时间，等待救援', value: 'delay' }
+                    ],
+                    (choice) => handleDeceptionChoice(choice)
+                );
+            }, 3000);
+        }
+        
+        // 处理第二决策点（紧张谈判）
+        function handleSecondChoice(choice) {
+            if (choice === 'compromise') {
+                addLog('陈昭博士: 我可以提供部分资料，但你们必须立即撤离', 'info');
+                setTimeout(() => {
+                    addLog('B国铁砧: 成交！这是一个公平的交易', 'info');
+                    continueCompromiseEnding();
+                }, 3000);
+            } else if (choice === 'show_activation') {
+                addLog('陈昭博士: [按下按钮] 看看这个！系统已经进入倒数状态！', 'alert');
+                setTimeout(() => {
+                    addLog('B国铁砧: 疯子！我们走！', 'alert');
+                    continueVictoryEnding();
+                }, 3000);
+            } else if (choice === 'activate_defense') {
+                addLog('陈昭博士: [激活防御系统] 这是你们最后的警告！', 'alert');
+                setTimeout(() => {
+                    addLog('B国铁砧: 撤退！系统真的激活了！', 'alert');
+                    continueDefenseEnding();
+                }, 3000);
+            }
+        }
+        
+        // 处理欺骗路径的选择
+        function handleDeceptionChoice(choice) {
+            if (choice === 'agree') {
+                addLog('陈昭博士: 好的，你们可以带走资料。但不要伤害任何人', 'info');
+                setTimeout(() => {
+                    addLog('B国铁砧: 放心，我们只是需要资料', 'info');
+                    continueAgreeEnding();
+                }, 3000);
+            } else if (choice === 'refuse') {
+                addLog('陈昭博士: 不可能！系统仍在激活，你们无法带走任何东西！', 'alert');
+                setTimeout(() => {
+                    addLog('B国铁砧: 你骗了我们！准备战斗！', 'alert');
+                    continueConflictEnding();
+                }, 3000);
+            } else if (choice === 'delay') {
+                addLog('陈昭博士: 资料在加密服务器中，需要时间解锁', 'info');
+                setTimeout(() => {
+                    addLog('A国救援: 这里是A国特种部队！立即投降！', 'alert');
+                    continueRescueEnding();
+                }, 3000);
+            }
+        }
+        
+        // 不同结局的处理函数
+        function continueCompromiseEnding() {
+            setTimeout(() => {
+                addLog('B国部队: 带着资料撤离', 'info');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 开始系统维护 - 检查所有传感器和化学物质', 'info');
+                protocol.disarm();
+            }, 6000);
+            
+            setTimeout(() => {
+                addLog('=== 故事场景模拟完成 - 妥协解决 ===', 'alert');
+                addLog('系统已解除，部分资料被带走', 'warning');
+                soundSystem.playSystemDeactivate();
+            }, 9000);
+        }
+        
+        function continueVictoryEnding() {
+            setTimeout(() => {
+                addLog('B国部队: 全部撤离综合体', 'info');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 系统控制恢复正常 - 开始安全检查', 'info');
+                protocol.disarm();
+            }, 6000);
+            
+            setTimeout(() => {
+                addLog('=== 故事场景模拟完成 - 成功防御 ===', 'alert');
+                addLog('系统成功抵御入侵，所有资料安全', 'info');
+                soundSystem.playSystemDeactivate();
+            }, 9000);
+        }
+        
+        function continueDefenseEnding() {
+            setTimeout(() => {
+                addLog('警报: 防御系统已激活 - 部分区域受损', 'warning');
+                addLog('B国部队: 紧急撤离！', 'alert');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 启动紧急修复程序 - 系统状态不稳定', 'warning');
+                protocol.disarm();
+            }, 6000);
+            
+            setTimeout(() => {
+                addLog('=== 故事场景模拟完成 - 防御成功 ===', 'alert');
+                addLog('系统成功防御，但需要修复', 'warning');
+                soundSystem.playSystemDeactivate();
+            }, 9000);
+        }
+        
+        function continueAgreeEnding() {
+            setTimeout(() => {
+                addLog('B国部队: 带着所有研究资料撤离', 'info');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('陈昭博士: 系统已解除 - 但国家失去了重要研究成果', 'warning');
+                protocol.disarm();
+            }, 6000);
+            
+            setTimeout(() => {
+                addLog('=== 故事场景模拟完成 - 资料流失 ===', 'alert');
+                addLog('系统已解除，但研究成果被窃取', 'warning');
+                soundSystem.playSystemDeactivate();
+            }, 9000);
+        }
+        
+        function continueConflictEnding() {
+            setTimeout(() => {
+                addLog('警报: 交火开始 - 系统进入最高警戒状态', 'alert');
+                addLog('陈昭博士: 激活所有防御系统！', 'alert');
+                protocol.arm();
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('爆炸: 综合体部分区域受损 - 系统即将触发', 'alert');
+                
+                // 最终决策点
+                showUserChoice(
+                    '情况危急！系统即将触发。你将如何做？',
+                    [
+                        { text: '尝试最后一刻的系统解除', value: 'final_disarm' },
+                        { text: '接受现实，触发临界协议', value: 'trigger' },
+                        { text: '手动控制爆炸范围，减少损失', value: 'manual_control' }
+                    ],
+                    (choice) => handleFinalChoice(choice)
+                );
+            }, 6000);
+        }
+        
+        function continueRescueEnding() {
+            setTimeout(() => {
+                addLog('B国部队: 投降！我们不想战斗', 'info');
+                soundSystem.playStoryAdvance();
+            }, 3000);
+            
+            setTimeout(() => {
+                addLog('A国救援: 控制现场，确保所有人员安全', 'info');
+                addLog('陈昭博士: 解除系统 - 危机已解决', 'info');
+                protocol.disarm();
+            }, 6000);
+            
+            setTimeout(() => {
+                addLog('=== 故事场景模拟完成 - 救援成功 ===', 'alert');
+                addLog('系统安全解除，所有资料保存完好', 'info');
+                soundSystem.playSystemDeactivate();
+            }, 9000);
+        }
+        
+        // 最终决策点处理
+        function handleFinalChoice(choice) {
+            if (choice === 'final_disarm') {
+                addLog('陈昭博士: [疯狂操作] 快！快！系统要爆炸了！', 'alert');
+                setTimeout(() => {
+                    addLog('成功: 系统在最后一刻解除了！', 'info');
+                    addLog('陈昭博士: 呼...我们活下来了', 'info');
+                    protocol.disarm();
+                    soundSystem.playSystemDeactivate();
+                    addLog('=== 故事场景模拟完成 - 绝处逢生 ===', 'alert');
+                }, 3000);
+            } else if (choice === 'trigger') {
+                addLog('陈昭博士: 这是唯一的选择...', 'alert');
+                setTimeout(() => {
+                    addLog('爆炸: 临界协议已触发 - 综合体化为灰烬', 'alert');
+                    protocol.disarm();
+                    soundSystem.playSystemDeactivate();
+                    addLog('=== 故事场景模拟完成 - 临界触发 ===', 'alert');
+                }, 3000);
+            } else if (choice === 'manual_control') {
+                addLog('陈昭博士: 手动控制爆炸范围，只摧毁核心区域', 'warning');
+                setTimeout(() => {
+                    addLog('成功: 爆炸范围被控制，大部分人员安全', 'info');
+                    addLog('陈昭博士: 这是最好的结果了', 'info');
+                    protocol.disarm();
+                    soundSystem.playSystemDeactivate();
+                    addLog('=== 故事场景模拟完成 - 控制爆炸 ===', 'alert');
+                }, 3000);
+            }
+        }
+
+        // 初始化系统
+        const protocol = new CriticalProtocol();
+        
+        // 初始化图表
+        window.addEventListener('load', () => {
+            initSensorChart();
+            initChemicalChart();
+            protocol.updateCharts();
+        });
+        
+        // 更新时间
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        
+        // 事件监听器
+        document.getElementById('armBtn').addEventListener('click', () => {
+            protocol.arm();
+        });
+        
+        document.getElementById('disarmBtn').addEventListener('click', () => {
+            protocol.disarm();
+        });
+        
+        document.getElementById('simulateBtn').addEventListener('click', () => {
+            protocol.simulateInvasion();
+        });
+        
+        document.getElementById('doorBtn').addEventListener('click', () => {
+            protocol.openDoor();
+        });
+        
+        document.getElementById('powerBtn').addEventListener('click', () => {
+            protocol.cutPower();
+        });
+        
+        document.getElementById('anesthesiaBtn').addEventListener('click', () => {
+            protocol.releaseAnesthesia();
+        });
+
+        // 添加故事场景按钮
+        const storyBtn = document.createElement('button');
+        storyBtn.className = 'btn';
+        storyBtn.textContent = '故事场景';
+        storyBtn.addEventListener('click', simulateStoryScene);
+        document.querySelector('.button-group').appendChild(storyBtn);
+        
+        // 配置面板功能
+        function initConfigPanel() {
+            // 更新敏感度显示
+            const sensitivitySlider = document.getElementById('sensorSensitivity');
+            const sensitivityValue = document.getElementById('sensitivityValue');
+            
+            sensitivitySlider.addEventListener('input', () => {
+                sensitivityValue.textContent = sensitivitySlider.value;
+            });
+            
+            // 应用配置
+            document.getElementById('applyConfigBtn').addEventListener('click', () => {
+                const nitroTemp = parseFloat(document.getElementById('nitroTemp').value);
+                const thermiteTemp = parseFloat(document.getElementById('thermiteTemp').value);
+                const sensitivity = parseInt(document.getElementById('sensorSensitivity').value);
+                
+                // 更新化学物质温度
+                protocol.chemicals.nitroglycerin.temperature = nitroTemp;
+                protocol.chemicals.thermite.temperature = thermiteTemp;
+                
+                addLog(`配置已应用: 硝化甘油 ${nitroTemp}°C, 铝热剂 ${thermiteTemp}°C, 敏感度 ${sensitivity}%`);
+                protocol.updateDisplay();
+            });
+            
+            // 重置默认值
+            document.getElementById('resetConfigBtn').addEventListener('click', () => {
+                document.getElementById('nitroTemp').value = -10;
+                document.getElementById('thermiteTemp').value = 25;
+                document.getElementById('sensorSensitivity').value = 80;
+                document.getElementById('sensitivityValue').textContent = '80';
+                
+                addLog('配置已重置为默认值');
+            });
+        }
+        
+        // 初始化配置面板
+        initConfigPanel();
+        
+        // 图表缩放控制功能
+        function initChartControls() {
+            // 传感器图表控制
+            document.getElementById('sensorZoomIn').addEventListener('click', () => {
+                if (sensorChart) {
+                    sensorChart.zoomScale(1.2, { x: true, y: true });
+                }
+            });
+            
+            document.getElementById('sensorZoomOut').addEventListener('click', () => {
+                if (sensorChart) {
+                    sensorChart.zoomScale(1 / 1.2, { x: true, y: true });
+                }
+            });
+            
+            document.getElementById('sensorResetZoom').addEventListener('click', () => {
+                if (sensorChart) {
+                    sensorChart.resetZoom();
+                }
+            });
+            
+            // 化学物质图表控制
+            document.getElementById('chemicalZoomIn').addEventListener('click', () => {
+                if (chemicalChart) {
+                    chemicalChart.zoomScale(1.2, { x: true, y: true });
+                }
+            });
+            
+            document.getElementById('chemicalZoomOut').addEventListener('click', () => {
+                if (chemicalChart) {
+                    chemicalChart.zoomScale(1 / 1.2, { x: true, y: true });
+                }
+            });
+            
+            document.getElementById('chemicalResetZoom').addEventListener('click', () => {
+                if (chemicalChart) {
+                    chemicalChart.resetZoom();
+                }
+            });
+        }
+        
+        // 初始化图表控制
+        initChartControls();
+        
+        // 初始化日志
+        addLog('临界协议系统初始化完成');
+        addLog('等待操作员指令...');
+        addLog('提示: 点击"故事场景"按钮体验完整剧情模拟');
+        addLog('提示: 可通过配置面板调整系统参数');
+        
+        // 粒子系统实现
+        class ParticleSystem {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = [];
+                // 根据设备类型调整粒子数量
+                this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                this.maxParticles = this.isMobile ? 50 : 100;
+                this.isRunning = false;
+                this.animationId = null;
+                this.systemState = 'ready'; // ready, armed, triggered, disarmed
+                
+                // 粒子颜色配置
+                this.particleColors = {
+                    ready: [
+                        'rgba(0, 255, 255, 0.8)',  // 主色调 - 青色
+                        'rgba(0, 200, 255, 0.6)',  // 蓝色变体
+                        'rgba(255, 255, 255, 0.5)',  // 白色
+                        'rgba(100, 255, 255, 0.7)'   // 浅青色
+                    ],
+                    armed: [
+                        'rgba(0, 255, 150, 0.8)',  // 绿色
+                        'rgba(0, 200, 200, 0.6)',  // 青绿色
+                        'rgba(100, 255, 150, 0.7)', // 浅绿色
+                        'rgba(0, 255, 255, 0.5)'    // 青色
+                    ],
+                    triggered: [
+                        'rgba(255, 0, 0, 0.8)',    // 红色
+                        'rgba(255, 100, 0, 0.7)',  // 橙色
+                        'rgba(255, 200, 0, 0.6)',  // 黄色
+                        'rgba(255, 50, 50, 0.9)'   // 深红色
+                    ],
+                    disarmed: [
+                        'rgba(100, 100, 100, 0.5)', // 灰色
+                        'rgba(150, 150, 150, 0.4)', // 浅灰色
+                        'rgba(200, 200, 200, 0.3)', // 更浅的灰色
+                        'rgba(120, 120, 120, 0.6)'  // 中灰色
+                    ]
+                };
+                
+                this.init();
+            }
+            
+            init() {
+                // 设置Canvas大小
+                this.resizeCanvas();
+                
+                // 监听窗口大小变化
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // 创建初始粒子
+                this.createInitialParticles();
+            }
+            
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+            
+            createInitialParticles() {
+                for (let i = 0; i < this.maxParticles / 2; i++) {
+                    this.createParticle();
+                }
+            }
+            
+            createParticle(x, y, options = {}) {
+                const stateColors = this.particleColors[this.systemState];
+                const particle = {
+                    x: x || Math.random() * this.canvas.width,
+                    y: y || Math.random() * this.canvas.height,
+                    size: options.size || (Math.random() * 3 + 1),
+                    speedX: options.speedX || (Math.random() - 0.5) * (this.systemState === 'triggered' ? 1 : 0.5),
+                    speedY: options.speedY || (Math.random() - 0.5) * (this.systemState === 'triggered' ? 1 : 0.5),
+                    color: options.color || stateColors[Math.floor(Math.random() * stateColors.length)],
+                    life: options.life || Math.random() * 100 + 50,
+                    maxLife: options.maxLife || 150,
+                    glow: options.glow || (Math.random() * 10 + 5 + (this.systemState === 'triggered' ? 5 : 0))
+                };
+                
+                this.particles.push(particle);
+            }
+            
+            updateParticles() {
+                // 移除死亡粒子并创建新粒子
+                this.particles = this.particles.filter(particle => particle.life > 0);
+                
+                while (this.particles.length < this.maxParticles) {
+                    this.createParticle();
+                }
+                
+                // 更新粒子位置和生命周期
+                this.particles.forEach(particle => {
+                    particle.x += particle.speedX;
+                    particle.y += particle.speedY;
+                    particle.life--;
+                    
+                    // 边界检测
+                    if (particle.x < 0 || particle.x > this.canvas.width) {
+                        particle.speedX *= -1;
+                    }
+                    if (particle.y < 0 || particle.y > this.canvas.height) {
+                        particle.speedY *= -1;
+                    }
+                    
+                    // 随机改变方向
+                    if (Math.random() < 0.01) {
+                        particle.speedX += (Math.random() - 0.5) * 0.2;
+                        particle.speedY += (Math.random() - 0.5) * 0.2;
+                    }
+                });
+            }
+            
+            drawParticles() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.particles.forEach(particle => {
+                    // 绘制粒子光晕
+                    const gradient = this.ctx.createRadialGradient(
+                        particle.x, particle.y, 0,
+                        particle.x, particle.y, particle.glow
+                    );
+                    gradient.addColorStop(0, particle.color);
+                    gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                    
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(particle.x, particle.y, particle.glow, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // 绘制粒子核心
+                    this.ctx.fillStyle = particle.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+            }
+            
+            animate() {
+                this.updateParticles();
+                this.drawParticles();
+                
+                if (this.isRunning) {
+                    this.animationId = requestAnimationFrame(() => this.animate());
+                }
+            }
+            
+            start() {
+                if (!this.isRunning) {
+                    this.isRunning = true;
+                    this.animate();
+                }
+            }
+            
+            stop() {
+                if (this.isRunning) {
+                    this.isRunning = false;
+                    cancelAnimationFrame(this.animationId);
+                }
+            }
+            
+            // 设置系统状态
+            setSystemState(state) {
+                this.systemState = state;
+                // 根据状态调整粒子行为
+                if (state === 'triggered') {
+                    // 触发时增加粒子速度和发光强度
+                    this.particles.forEach(particle => {
+                        particle.speedX *= 2;
+                        particle.speedY *= 2;
+                        particle.glow *= 1.5;
+                    });
+                } else if (state === 'armed') {
+                    // 激活时轻微增加粒子活性
+                    this.particles.forEach(particle => {
+                        particle.speedX *= 1.2;
+                        particle.speedY *= 1.2;
+                    });
+                } else if (state === 'disarmed') {
+                    // 解除时降低粒子活性
+                    this.particles.forEach(particle => {
+                        particle.speedX *= 0.8;
+                        particle.speedY *= 0.8;
+                    });
+                }
+            }
+            
+            // 响应系统状态变化的粒子效果
+            triggerSystemEffect(type) {
+                if (type === 'activate') {
+                    this.setSystemState('armed');
+                    // 系统激活时的粒子爆发效果
+                    for (let i = 0; i < 20; i++) {
+                        setTimeout(() => {
+                            this.createParticle(this.canvas.width / 2, this.canvas.height / 2, {
+                                speedX: (Math.random() - 0.5) * 2,
+                                speedY: (Math.random() - 0.5) * 2,
+                                glow: Math.random() * 15 + 10
+                            });
+                        }, i * 50);
+                    }
+                } else if (type === 'trigger') {
+                    this.setSystemState('triggered');
+                    // 协议触发时的红色粒子效果
+                    for (let i = 0; i < 30; i++) {
+                        setTimeout(() => {
+                            this.createParticle(this.canvas.width / 2 + (Math.random() - 0.5) * 200,
+                                               this.canvas.height / 2 + (Math.random() - 0.5) * 200, {
+                                size: Math.random() * 4 + 2,
+                                speedX: (Math.random() - 0.5) * 3,
+                                speedY: (Math.random() - 0.5) * 3,
+                                color: 'rgba(255, 0, 0, ' + (Math.random() * 0.8 + 0.5) + ')',
+                                life: Math.random() * 80 + 50,
+                                glow: Math.random() * 15 + 10
+                            });
+                        }, i * 20);
+                    }
+                } else if (type === 'config') {
+                    // 配置应用时的蓝色粒子效果
+                    for (let i = 0; i < 15; i++) {
+                        setTimeout(() => {
+                            this.createParticle(this.canvas.width / 4 + (Math.random() - 0.5) * 100,
+                                               this.canvas.height / 2 + (Math.random() - 0.5) * 100, {
+                                size: Math.random() * 3 + 1,
+                                speedX: (Math.random() - 0.5) * 2,
+                                speedY: (Math.random() - 0.5) * 2,
+                                color: 'rgba(0, 150, 255, ' + (Math.random() * 0.8 + 0.5) + ')',
+                                life: Math.random() * 80 + 50,
+                                glow: Math.random() * 12 + 8
+                            });
+                        }, i * 30);
+                    }
+                } else if (type === 'disarm') {
+                    this.setSystemState('disarmed');
+                    // 解除协议时的灰色粒子效果
+                    for (let i = 0; i < 15; i++) {
+                        setTimeout(() => {
+                            this.createParticle(this.canvas.width / 2 + (Math.random() - 0.5) * 150,
+                                               this.canvas.height / 2 + (Math.random() - 0.5) * 150, {
+                                size: Math.random() * 2 + 1,
+                                speedX: (Math.random() - 0.5) * 1,
+                                speedY: (Math.random() - 0.5) * 1,
+                                color: 'rgba(150, 150, 150, ' + (Math.random() * 0.6 + 0.3) + ')',
+                                life: Math.random() * 100 + 50,
+                                glow: Math.random() * 8 + 5
+                            });
+                        }, i * 40);
+                    }
+                } else if (type === 'invasion') {
+                    // 入侵模拟时的闪烁红色粒子
+                    for (let i = 0; i < 10; i++) {
+                        setTimeout(() => {
+                            this.createParticle(this.canvas.width * 0.75 + (Math.random() - 0.5) * 100,
+                                               this.canvas.height / 2 + (Math.random() - 0.5) * 200, {
+                                size: Math.random() * 3 + 2,
+                                speedX: (Math.random() - 0.5) * 1.5,
+                                speedY: (Math.random() - 0.5) * 1.5,
+                                color: 'rgba(255, 50, 50, ' + (Math.random() * 0.9 + 0.6) + ')',
+                                life: Math.random() * 60 + 40,
+                                glow: Math.random() * 12 + 8
+                            });
+                        }, i * 100);
+                    }
+                }
+            }
+        }
+        
+        // 初始化粒子系统
+        const particleSystem = new ParticleSystem('particleCanvas');
+        particleSystem.start();
+        
+        // 初始化日志过滤功能
+        setupLogFilters();
+        
+        // 为系统事件添加粒子效果
+        const originalArm = CriticalProtocol.prototype.arm;
+        CriticalProtocol.prototype.arm = function() {
+            originalArm.call(this);
+            particleSystem.triggerSystemEffect('activate');
+        };
+        
+        const originalTrigger = CriticalProtocol.prototype.trigger;
+        CriticalProtocol.prototype.trigger = function() {
+            originalTrigger.call(this);
+            particleSystem.triggerSystemEffect('trigger');
+        };
+        
+        // 为配置应用添加粒子效果
+        document.getElementById('applyConfigBtn').addEventListener('click', () => {
+            setTimeout(() => {
+                particleSystem.triggerSystemEffect('config');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

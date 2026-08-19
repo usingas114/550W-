@@ -1,0 +1,58 @@
+// 550W.rc: 应用程序资源定义
+
+#include "resource.h"
+
+// 菜单定义
+IDC_550W MENU
+BEGIN
+    POPUP "&文件"
+    BEGIN
+        MENUITEM "&关于...", IDM_ABOUT
+        MENUITEM SEPARATOR
+        MENUITEM "&退出", IDM_EXIT
+    END
+    POPUP "&系统"
+    BEGIN
+        MENUITEM "&状态", IDM_STATUS
+        MENUITEM "&诊断", IDM_DIAGNOSTICS
+        MENUITEM "&关机", IDM_SHUTDOWN
+    END
+    POPUP "&任务"
+    BEGIN
+        MENUITEM "&添加任务", IDM_ADDTASK
+        MENUITEM "&完成任务", IDM_COMPLETETASK
+    END
+    POPUP "&网络"
+    BEGIN
+        MENUITEM "&激活量子链接", IDM_ACTIVATEQUANTUMLINK
+        MENUITEM "&停用量子链接", IDM_DEACTIVATEQUANTUMLINK
+    END
+    POPUP "&AI"
+    BEGIN
+        MENUITEM "&AI对话", IDM_AIDIALOGUE
+        MENUITEM "&升级知识", IDM_UPGRADEKNOWLEDGE
+    END
+    POPUP "&设置"
+    BEGIN
+        MENUITEM "&修改密码", IDM_CHANGEPASSWORD
+        MENUITEM "&系统信息", IDM_SYSTEMINFO
+    END
+END
+
+// 关于对话框
+IDD_ABOUTBOX DIALOGEX 0, 0, 230, 75
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "关于 550W 模拟器"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    ICON IDI_550W,IDC_STATIC,10,10,20,20
+    LTEXT "550W 模拟器 v6.0",IDC_STATIC,40,10,119,8,SS_NOPREFIX
+    LTEXT "量子计算机系统模拟器",IDC_STATIC,40,20,119,8
+    DEFPUSHBUTTON "确定",IDOK,170,10,50,14,WS_GROUP
+    LTEXT "© 2025 550W 项目组",IDC_STATIC,40,40,119,8,SS_NOPREFIX
+    LTEXT "基于 Win32 API 构建",IDC_STATIC,40,50,119,8
+END
+
+// 图标定义
+IDI_550W ICON "550w.ico"
+IDI_SMALL ICON "550w_small.ico"
